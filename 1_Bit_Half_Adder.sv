@@ -1,4 +1,4 @@
-module Half_Adder
+module 1_Bit_Half_Adder
     (
         input A_in,
         input B_in,
