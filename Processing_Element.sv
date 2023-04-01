@@ -50,7 +50,7 @@ module Processing_Element
     }
     state;
 
-    //
+    //Scratchpad Instantiation
     logic read_enable;
     logic write_enable;
 
@@ -71,5 +71,44 @@ module Processing_Element
             .write_data(write_data),
             .read_data(read_data) 
         );
+    
+    // MAC Instantiation 
+    logic [DATA_WIDTH-1:0] partial_sum_reg;
+    logic [DATA_WIDTH-1:0] sum_input;
 
+    logic [DATA_WIDTH-1:0] activation_input_reg;
+    logic [DATA_WIDTH-1:0] filter_input_reg;
+
+    logic mac_enable;
+
+    MAC
+        #(
+            .INPUT_BITWIDTH(DATA_WIDTH),
+            .OUTPUT_BITWIDTH(DATA_WIDTH) 
+        )
+    MAC_0
+        (
+            .a_in(activation_input_reg),
+            .w_in(filter_input_reg),
+            .sum_in(sum_input),
+            .clk(clk),
+            .enable(mac_enable)
+            .out(partial_sum_reg) 
+        );
         
+    logic sum_input_mux_sel;
+    
+    mux_2_to_1
+            #(
+                .INPUT_BITWIDTH(DATA_WIDTH)
+            )
+    mux_2_to_1_0
+            (
+                .a_in(partial_sum_reg),
+                .b_in(16'b0), //fixed to 0
+                .sel(sum_input_mux_sel),
+                .out(sum_input)
+            );
+    
+    logic [7:0] filter_count;
+    logic [2:0] iterations;
