@@ -233,8 +233,8 @@ module Processing_Element
                         write_address <= PARTIAL_SUM_ADDRESS + iterations;
                         write_enable <= 1;
 
-                        //State -> WRITE
-                        state <= WRITE;
+                        //State -> WRITE_TO_SPAD
+                        state <= WRITE_TO_SPAD;
                     end else begin
                         if(filter_count == 0)begin
                             sum_input_mux_sel <= 0; //Provide 16'b0 to the input
