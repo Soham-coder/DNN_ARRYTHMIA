@@ -225,7 +225,7 @@ module Processing_Element
                     $display("MAC output: %d", partial_sum_reg);
 
                     mac_enable <= 0;
-                    
+
                     if(filter_count == kernel_size)begin
                         activation_input_reg <= read_data;
                         read_enable <= 0;
@@ -248,3 +248,45 @@ module Processing_Element
                         state <= READ_WEIGHTS;
                     end
                 end
+
+                WRITE_TO_SPAD: begin
+                    write_data <= partial_sum_reg;
+                    read_address <= WEIGHT_READ_ADDRESS;
+                    read_enable <= 1;
+                    iterations <= iterations + 1;
+                    //output status signal
+                    compute_done <= 1;
+
+                    //State -> IDLE
+                    state <= IDLE;
+                end
+
+                LOAD_WEIGHTS: begin
+                    
+                    $display("Weight write: %d to address: %d", filter_input, write_address);
+                    $display("Write Enable: %d", write_enable);
+
+                    if(filter_count == (kernel_size**2 - 1))begin
+                        filter_count <= 0;
+                        //output status signal
+                        load_done <= 1;
+
+                        //State -> IDLE
+                        state <= IDLE;
+                    end else begin
+                        write_data <= activation_input;
+                        write_address <= write_address + 1;
+                        filter_count <= filter_count + 1;
+
+                        //State -> LOAD_ACTIVATIONS
+                        state <= LOAD_ACTIVATIONS;
+                    end
+                end
+            endcase
+        end
+    end
+
+    assign processingelement_out = partial_sum_reg;
+
+endmodule
+
