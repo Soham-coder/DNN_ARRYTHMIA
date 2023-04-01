@@ -112,3 +112,139 @@ module Processing_Element
     
     logic [7:0] filter_count;
     logic [2:0] iterations;
+
+    // FSM for Processing Element
+
+    always@(posedge clk) begin
+
+        $display("State : %s", state.name());
+        //Display state of PE at every clock edge
+        if(reset)begin
+            
+            //Initialize registers
+            filter_count <= 0;
+            sum_input_mux_sel <= 0;
+
+            //Initialize scratchpad inputs
+            write_address <= WEIGHT_READ_ADDRESS;
+            read_address <= WEIGHT_READ_ADDRESS;
+            write_data <= 0;
+            write_enable <= 0;
+            read_enable <= 0;
+            
+            //Initialize outputs
+            compute_done <= 0;
+            load_done <= 0;
+            
+            //Initialize MAC signals
+            mac_enable <= 0;
+            iterations <= 0;
+            
+            //State -> IDLE
+            state <= IDLE;
+        end
+        else begin
+            case(state)
+                IDLE: begin
+                    if(start) begin
+                        if (iterations == (activation_size - kernel_size + 1))begin
+                            //Iterations complete
+                            iterations <= 0;
+                            //State -> IDLE
+                            state <= IDLE;
+                        end else begin
+                            //If Iterations not complete
+                            read_address <= ACTIVATION_READ_ADDRESS + iterations * activation_size;
+                            filter_count <= 0;
+                            sum_input_mux_sel <= 0;
+                            read_enable <= 1;
+
+                            //State -> READ_WEIGHTS
+                            
+                            state <= READ_WEIGHTS;
+                        end
+                    end else begin
+                        if(load_enable_weight)begin
+                            write_address <= WEIGHT_LOAD_ADDRESS; 
+                            //Loading of weights starts at index 0
+                            write_data <= filter_input;
+                            write_enable <= 1;
+                            filter_count <= 0;
+                            
+                            //State -> LOAD_WEIGHTS
+                            state <= LOAD_WEIGHTS;
+                        end else if (load_enable_activation)begin
+                            write_enable <= 1;
+                            write_address <= ACTIVATION_LOAD_ADDRESS;
+                            //Loading of activations starts at 100
+                            write_data <= activation_input;
+
+                            //State -> LOAD_ACTIVATIONS
+                            state <= LOAD_ACTIVATIONS;
+                        end else begin
+                            //Output status signals
+                            load_done <= 0;
+                            compute_done <= 0;
+                            
+                            //State -> IDLE
+                            state <= IDLE;
+                        end
+                    end
+                end
+
+                READ_WEIGHTS: begin
+                    filter_input_reg <= read_data;
+                    read_enable <= 1;
+                    filter_count <= filter_count + 1;
+
+                    $display("Weight read : %d from address : %d", read_data, read_address);
+                    $display("Read Enable: %d", read_enable);
+                    
+                    //State -> READ_ACTIVATIONS
+                    state <= READ_ACTIVATIONS;
+                end
+
+                READ_ACTIVATIONS: begin
+                    
+                    $display("Activation read: %d from address: %d", read_data, read_address);
+                    $display("Read Enable: %d", read_enable);
+                    
+                    activation_input_reg <= read_data;
+                    read_enable <= 1;
+
+                    read_address <= WEIGHT_READ_ADDRESS + filter_count;
+                    mac_enable <= 1;
+
+                    //State -> COMPUTE
+                    state <= COMPUTE;
+                end
+
+                COMPUTE : begin
+                    
+                    $display("Weight taken in register: %d | Activation takem in register: %d", filter_input_reg, activation_input_reg);
+                    $display("MAC output: %d", partial_sum_reg);
+
+                    mac_enable <= 0;
+                    
+                    if(filter_count == kernel_size)begin
+                        activation_input_reg <= read_data;
+                        read_enable <= 0;
+
+                        write_address <= PARTIAL_SUM_ADDRESS + iterations;
+                        write_enable <= 1;
+
+                        //State -> WRITE
+                        state <= WRITE;
+                    end else begin
+                        if(filter_count == 0)begin
+                            sum_input_mux_sel <= 0; //Provide 16'b0 to the input
+                        end else begin
+                            sum_input_mux_sel <= 1;
+                        end
+
+                        read_address <= ACTIVATION_READ_ADDRESS + filter_count + iterations * activation_size;
+                        
+                        //State -> READ_WEIGHTS
+                        state <= READ_WEIGHTS;
+                    end
+                end
